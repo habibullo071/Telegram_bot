@@ -13,7 +13,8 @@ from shazamio import Shazam
 import yt_dlp
 from aiohttp import web
 
-TOKEN = os.environ.get("8973306223:AAFkZEqubADjcQH3Mr3Y013wKCEapUiXlQY")
+# Render'dagi Environment Variable'dan BOT_TOKEN ni o'qiydi
+TOKEN = os.environ.get("BOT_TOKEN")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -151,7 +152,6 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
         search_id = str(uuid.uuid4())[:8]
         search_cache[search_id] = results_list
 
-        # Topilgan natijalar soniga mos ravishda tugmalar shakllanadi
         await wait_msg.edit_text(
             text, 
             parse_mode="HTML", 
@@ -324,8 +324,7 @@ async def handle_ping(request):
     return web.Response(text="Bot muvaffaqiyatli ishlayapti!")
 
 async def main():
-    # Render port xatosini to'g'rilash uchun soxta Web Server
-    PORT = int(os.environ.get("PORT", 8080))
+    PORT = int(os.environ.get("PORT", 10000))
     app = web.Application()
     app.router.add_get("/", handle_ping)
     runner = web.AppRunner(app)

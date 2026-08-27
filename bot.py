@@ -1,5 +1,5 @@
 import static_ffmpeg
-# static_ffmpeg ni boshqa har qanday audio kutubxonadan oldin chaqiramiz
+# static_ffmpeg ni boshqa kutubxonalardan oldin ishga tushiramiz
 static_ffmpeg.add_paths()
 
 import os
@@ -13,7 +13,7 @@ from shazamio import Shazam
 import yt_dlp
 from aiohttp import web
 
-# Render'dagi Environment Variable'dan BOT_TOKEN ni o'qiydi
+# Render Environment Variable'dan tokenni o'qiymiz
 TOKEN = os.environ.get("BOT_TOKEN")
 
 bot = Bot(token=TOKEN)
@@ -31,7 +31,6 @@ def get_video_keyboard(bot_username: str, user_id: int):
         ]
     )
 
-# Dinamik klaviatura: nechta natija bo'lsa, shuncha tugma chiqadi
 def build_search_keyboard(search_id: str, count: int):
     keyboard = []
     row1 = []
@@ -91,7 +90,8 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
         'skip_download': True,
         'no_warnings': True,
         'default_search': 'ytsearch',
-        'socket_timeout': 15,
+        'socket_timeout': 20,
+        'nocheckcertificate': True,
     }
 
     try:
@@ -194,6 +194,7 @@ async def handle_link(message: types.Message):
         'outtmpl': video_file,
         'quiet': True,
         'no_warnings': True,
+        'nocheckcertificate': True,
         'socket_timeout': 30,
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',

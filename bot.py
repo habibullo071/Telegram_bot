@@ -13,7 +13,7 @@ from shazamio import Shazam
 import yt_dlp
 from aiohttp import web
 
-TOKEN = "8973306223:AAGgh41H9qQ6NwPlGCYNAFT5-eu7FeBNNMg"
+TOKEN = "8973306223:AAFkZEqubADjcQH3Mr3Y013wKCEapUiXlQY"
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()

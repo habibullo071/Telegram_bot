@@ -9,7 +9,6 @@ from shazamio import Shazam
 import yt_dlp
 from aiohttp import web
 
-# Tokenni xavfsiz tarzda muhit o'zgaruvchisidan (Environment Variable) olamiz
 TOKEN = os.environ.get("BOT_TOKEN")
 
 if not TOKEN:
@@ -93,7 +92,7 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
         'nocheckcertificate': True,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web']
+                'player_client': ['ios', 'android', 'web']
             }
         },
         'http_headers': {
@@ -176,7 +175,7 @@ async def handle_media(message: types.Message):
     
     media = message.voice or message.audio or message.video or message.video_note
     file = await bot.get_file(media.file_id)
-    temp_file = f"temp_{uuid.uuid4().hex}.mp4"
+    temp_file = f"temp_{uuid.uuid4().hex}.mp3"
     
     await bot.download_file(file.file_path, temp_file)
     search_query = await recognize_audio(temp_file)
@@ -197,7 +196,7 @@ async def handle_link(message: types.Message):
     video_file = f"video_{uuid.uuid4().hex}.mp4"
 
     ydl_opts = {
-        'format': 'best',
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': video_file,
         'quiet': True,
         'no_warnings': True,
@@ -205,7 +204,7 @@ async def handle_link(message: types.Message):
         'socket_timeout': 30,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web']
+                'player_client': ['ios', 'android', 'web']
             }
         },
         'http_headers': {
@@ -256,7 +255,7 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
         'socket_timeout': 30,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'web']
+                'player_client': ['ios', 'android', 'web']
             }
         },
         'http_headers': {

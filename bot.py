@@ -34,8 +34,7 @@ L = instaloader.Instaloader(
     download_video_thumbnails=False,
     download_geotags=False,
     download_comments=False,
-    save_metadata=False,
-    compress_history=False
+    save_metadata=False
 )
 
 def get_common_yt_opts():

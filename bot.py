@@ -212,7 +212,8 @@ async def handle_link(message: types.Message):
 
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
-        'format': 'best',
+        'format': 'b/best',
+        'format_sort': ['res', 'ext:mp4:m4a'],
         'outtmpl': video_file,
     })
 
@@ -252,7 +253,7 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
     
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
-        'format': 'bestaudio/best/ba',
+        'format': 'ba/b/best',
         'outtmpl': output_template,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',

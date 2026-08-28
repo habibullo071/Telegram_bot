@@ -2,6 +2,8 @@ import os
 import asyncio
 import uuid
 import html
+import static_ffmpeg
+static_ffmpeg.add_paths()
 from aiogram import Bot, Dispatcher, types, F
 from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton

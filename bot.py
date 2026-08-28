@@ -2,6 +2,7 @@ import os
 import asyncio
 import uuid
 import html
+import instaloader
 import static_ffmpeg
 static_ffmpeg.add_paths()
 from aiogram import Bot, Dispatcher, types, F
@@ -14,7 +15,7 @@ from aiohttp import web
 TOKEN = os.environ.get("BOT_TOKEN")
 
 if not TOKEN:
-    raise ValueError("XATO: BOT_TOKEN topilmadi!")
+    raise ValueError("XATO: BOT_TOKEN topilmadi! Server o'zgaruvchilariga BOT_TOKEN kiriting.")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -26,6 +27,17 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIE_PATH = os.path.join(BASE_DIR, "cookies.txt")
 COOKIE_FILE = COOKIE_PATH if os.path.exists(COOKIE_PATH) else None
 
+# Instaloader obyekti
+L = instaloader.Instaloader(
+    download_pictures=False,
+    download_videos=True,
+    download_video_thumbnails=False,
+    download_geotags=False,
+    download_comments=False,
+    save_metadata=False,
+    compress_history=False
+)
+
 def get_common_yt_opts():
     opts = {
         'quiet': True,
@@ -33,14 +45,8 @@ def get_common_yt_opts():
         'nocheckcertificate': True,
         'noprogress': True,
         'socket_timeout': 30,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android_creator', 'ios', 'android'],
-                'skip': ['webpage', 'configs']
-            }
-        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
         }
     }
@@ -101,6 +107,39 @@ async def recognize_audio(file_path: str):
     except Exception as e:
         print(f"Shazam error: {e}")
     return None
+
+async def download_instagram_reel(url: str, output_path: str) -> bool:
+    try:
+        if "/reel/" in url:
+            shortcode = url.split("/reel/")[1].split("/")[0]
+        elif "/p/" in url:
+            shortcode = url.split("/p/")[1].split("/")[0]
+        else:
+            return False
+            
+        loop = asyncio.get_event_loop()
+        
+        def fetch():
+            post = instaloader.Post.from_shortcode(L.context, shortcode)
+            if post.is_video:
+                target_dir = f"insta_{uuid.uuid4().hex}"
+                L.download_post(post, target=target_dir)
+                
+                for file in os.listdir(target_dir):
+                    if file.endswith(".mp4"):
+                        os.rename(os.path.join(target_dir, file), output_path)
+                        break
+                
+                for file in os.listdir(target_dir):
+                    os.remove(os.path.join(target_dir, file))
+                os.rmdir(target_dir)
+                return True
+            return False
+
+        return await loop.run_in_executor(None, fetch)
+    except Exception as e:
+        print(f"Instaloader error: {e}")
+        return False
 
 async def process_and_show_10_results(message: types.Message, query: str, wait_msg: types.Message = None):
     clean_query = html.escape(query)
@@ -204,21 +243,34 @@ async def handle_link(message: types.Message):
     await bot.send_chat_action(chat_id=message.chat.id, action="upload_video")
     wait_msg = await message.answer("🔄 ⚙️ <b>Media yuklanmoqda...</b>", parse_mode="HTML")
     
-    url = message.text.strip()
+    url = message.text.strip().split('?')[0]
     user_id = message.from_user.id
     video_file = f"video_{uuid.uuid4().hex}.mp4"
 
-    ydl_opts = get_common_yt_opts()
-    ydl_opts.update({
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-        'outtmpl': video_file,
-    })
-
     try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))
+        success = False
+        
+        if "instagram.com" in url:
+            success = await download_instagram_reel(url, video_file)
+        else:
+            ydl_opts = get_common_yt_opts()
+            ydl_opts.update({
+                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+                'outtmpl': video_file,
+            })
+            if "youtube.com" in url or "youtu.be" in url:
+                ydl_opts['extractor_args'] = {
+                    'youtube': {
+                        'player_client': ['android_creator', 'ios', 'android'],
+                        'skip': ['webpage', 'configs']
+                    }
+                }
 
-        if os.path.exists(video_file):
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))
+            success = os.path.exists(video_file)
+
+        if success and os.path.exists(video_file):
             search_query = await recognize_audio(video_file)
             if search_query:
                 with open(f"query_{user_id}.txt", "w", encoding="utf-8") as f:
@@ -235,7 +287,7 @@ async def handle_link(message: types.Message):
             await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi.")
     except Exception as e:
         print(f"Yuklashda xato: {e}")
-        await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi (YouTube blokirovkasi).")
+        await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi. Profil yopiq bo'lishi yoki havola noto'g'ri bo'lishi mumkin.")
     finally:
         await safe_remove(video_file)
 

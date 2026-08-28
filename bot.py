@@ -14,7 +14,7 @@ from aiohttp import web
 TOKEN = os.environ.get("BOT_TOKEN")
 
 if not TOKEN:
-    raise ValueError("XATO: BOT_TOKEN topilmadi! Railway yoki kompyuteringizga BOT_TOKEN o'zgaruvchisini kiriting.")
+    raise ValueError("XATO: BOT_TOKEN topilmadi! Railway yoki server o'zgaruvchilariga BOT_TOKEN kiriting.")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -34,12 +34,6 @@ def get_common_yt_opts():
         'nocheckcertificate': True,
         'noprogress': True,
         'socket_timeout': 30,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['android', 'web', 'mweb'],
-                'skip': ['configs']
-            }
-        },
         'http_headers': {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -109,7 +103,7 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
     if not wait_msg:
         wait_msg = await message.answer(f"🔍 <b>\"{clean_query}\"</b> qidirilmoqda...", parse_mode="HTML")
     else:
-        await wait_msg.edit_text(f"🔍 <b>\"{clean_query}\"</b> bo'yicha variatlar qidirilmoqda...", parse_mode="HTML")
+        await wait_msg.edit_text(f"🔍 <b>\"{clean_query}\"</b> bo'yicha variantlar qidirilmoqda...", parse_mode="HTML")
 
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
@@ -213,17 +207,26 @@ async def handle_link(message: types.Message):
     user_id = message.from_user.id
     video_file = f"video_{uuid.uuid4().hex}.mp4"
 
-    ydl_opts = get_common_yt_opts()
-    # Format parametrini har qanday formatni qo'llab-quvvatlaydigan moslashuvchan rejimga o'tkazamiz
-    ydl_opts.update({
-        'format': 'bestvideo+bestaudio/best',
-        'merge_output_format': 'mp4',
+    ydl_opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'noprogress': True,
         'outtmpl': video_file,
-    })
+        'format': 'b/bestpass/best',
+        'nocheckcertificate': True,
+        'socket_timeout': 30,
+    }
+    if COOKIE_FILE:
+        ydl_opts['cookiefile'] = COOKIE_FILE
 
     try:
         loop = asyncio.get_event_loop()
-        await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))
+        
+        def download_video():
+            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+                ydl.download([url])
+
+        await loop.run_in_executor(None, download_video)
 
         if os.path.exists(video_file):
             search_query = await recognize_audio(video_file)
@@ -242,7 +245,7 @@ async def handle_link(message: types.Message):
             await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi.")
     except Exception as e:
         print(f"Yuklashda xato: {e}")
-        await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi.")
+        await wait_msg.edit_text("❌ Ushbu videoni yuklab bo'lmadi.")
     finally:
         await safe_remove(video_file)
 

@@ -1,7 +1,3 @@
-import static_ffmpeg
-# static_ffmpeg ni boshqa kutubxonalardan oldin ishga tushiramiz
-static_ffmpeg.add_paths()
-
 import os
 import asyncio
 import uuid
@@ -13,8 +9,11 @@ from shazamio import Shazam
 import yt_dlp
 from aiohttp import web
 
-# Render Environment Variable'dan tokenni o'qiymiz
+# Tokenni xavfsiz tarzda muhit o'zgaruvchisidan (Environment Variable) olamiz
 TOKEN = os.environ.get("BOT_TOKEN")
+
+if not TOKEN:
+    raise ValueError("XATO: BOT_TOKEN topilmadi! Railway yoki kompyuteringizga BOT_TOKEN o'zgaruvchisini kiriting.")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -92,6 +91,14 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
         'default_search': 'ytsearch',
         'socket_timeout': 20,
         'nocheckcertificate': True,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        }
     }
 
     try:
@@ -196,8 +203,13 @@ async def handle_link(message: types.Message):
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 30,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
         }
     }
 
@@ -242,6 +254,14 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
         'no_warnings': True,
         'nocheckcertificate': True,
         'socket_timeout': 30,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'web']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',

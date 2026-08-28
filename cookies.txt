@@ -15,3 +15,19 @@
 .youtube.com	TRUE	/	TRUE	1803482126	__Secure-YNID	21.YT=mroZNdU1P3THezcFDYwMRlYTqM_jxbcepl6m-yso3vp5DlwRD1gVZhTO31214jy9MtXR6RwaAXLAx0Mm5jV6Wop-40OsO8M7Hz-3mBjpqyPtDrbZuLggtcJeljs8EXRgkredreLukbVTNpRKEMwO_rSMpER5zDN3Sz7Jme8pav58Y8PQfISsNmv4_yoyx0YZf1sj51sixsowcCLYmXW9zMfdiM7q_kaHrRHFC2FHikcXYX4JVKNCztg68ScTSLKJKyKw5wFAX2lYGMLrwCiDZ9-3CxuSL5b-7W6BHVM8GO7y0_DdfO3F_tg4GOZcEKzltMIXsvki7AcUxdwNxFpjvQ
 .youtube.com	TRUE	/	TRUE	0	YSC	KB3FU4bpIk4
 .youtube.com	TRUE	/	TRUE	1803482126	__Secure-ROLLOUT_TOKEN	CPym3uTGjMObNxDQgqzY3amWAxj7-K7gzsOWAw%3D%3D
+
+
+# Netscape HTTP Cookie File
+# https://curl.haxx.se/rfc/cookie_spec.html
+# This is a generated file! Do not edit.
+
+.instagram.com	TRUE	/	TRUE	1821622916	datr	g2qEakolzN-nTPWxDpFsZ-5m
+.instagram.com	TRUE	/	TRUE	1818598916	ig_did	AA28DE74-2C99-4248-8DC0-364F2098B864
+.instagram.com	TRUE	/	TRUE	1821622916	mid	aoRqgwALAAGRWb4lJ2SK512psyDI
+.instagram.com	TRUE	/	TRUE	1821623008	ps_l	1
+.instagram.com	TRUE	/	TRUE	1821623008	ps_n	1
+.instagram.com	TRUE	/	TRUE	1822494044	csrftoken	uVdrM1aiUMSYrqIUbqPjg4vQl2P9UScm
+.instagram.com	TRUE	/	TRUE	1795710044	ds_user_id	62127561876
+.instagram.com	TRUE	/	TRUE	1788538825	wd	1366x641
+.instagram.com	TRUE	/	TRUE	1819470026	sessionid	62127561876%3A243jZWKJH0O51t%3A28%3AAYipHLcKQ7Wy67CrFtd0EESHabMGirBm4Vfinz-lxnU
+.instagram.com	TRUE	/	TRUE	0	rur	LDC%2C17841461976305945%2C1789144430%3A01ff7b8354b99a558cd08e42421f36dc221e7bc4fe1b6ec33f415982698237e2e30687f1

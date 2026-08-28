@@ -33,7 +33,7 @@ def get_common_yt_opts():
         'socket_timeout': 30,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'mweb'],
+                'player_client': ['android', 'ios', 'web'],
                 'skip': ['webpage', 'configs']
             }
         },
@@ -212,7 +212,7 @@ async def handle_link(message: types.Message):
 
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+        'format': 'best',
         'outtmpl': video_file,
     })
 
@@ -252,7 +252,7 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
     
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
-        'format': 'bestaudio/best',
+        'format': 'bestaudio/best/ba',
         'outtmpl': output_template,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',

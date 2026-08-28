@@ -2,7 +2,6 @@ import os
 import asyncio
 import uuid
 import html
-import instaloader
 import static_ffmpeg
 static_ffmpeg.add_paths()
 from aiogram import Bot, Dispatcher, types, F
@@ -10,12 +9,13 @@ from aiogram.filters import CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from shazamio import Shazam
 import yt_dlp
+import aiohttp
 from aiohttp import web
 
 TOKEN = os.environ.get("BOT_TOKEN")
 
 if not TOKEN:
-    raise ValueError("XATO: BOT_TOKEN topilmadi! Server o'zgaruvchilariga BOT_TOKEN kiriting.")
+    raise ValueError("BOT_TOKEN topilmadi!")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -27,16 +27,6 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIE_PATH = os.path.join(BASE_DIR, "cookies.txt")
 COOKIE_FILE = COOKIE_PATH if os.path.exists(COOKIE_PATH) else None
 
-# Instaloader obyekti
-L = instaloader.Instaloader(
-    download_pictures=False,
-    download_videos=True,
-    download_video_thumbnails=False,
-    download_geotags=False,
-    download_comments=False,
-    save_metadata=False
-)
-
 def get_common_yt_opts():
     opts = {
         'quiet': True,
@@ -44,8 +34,14 @@ def get_common_yt_opts():
         'nocheckcertificate': True,
         'noprogress': True,
         'socket_timeout': 30,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['ios', 'mweb', 'android'],
+                'skip': ['webpage', 'configs']
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15',
             'Accept-Language': 'en-US,en;q=0.9',
         }
     }
@@ -64,21 +60,17 @@ def get_video_keyboard(bot_username: str, user_id: int):
 
 def build_search_keyboard(search_id: str, count: int):
     keyboard = []
-    row1 = []
-    row2 = []
-
+    row1, row2 = [], []
     for i in range(1, count + 1):
         btn = InlineKeyboardButton(text=str(i), callback_data=f"sel_{search_id}_{i}")
         if i <= 5:
             row1.append(btn)
         else:
             row2.append(btn)
-
     if row1:
         keyboard.append(row1)
     if row2:
         keyboard.append(row2)
-
     keyboard.append([InlineKeyboardButton(text="❌", callback_data="close_search")])
     return InlineKeyboardMarkup(inline_keyboard=keyboard)
 
@@ -107,42 +99,75 @@ async def recognize_audio(file_path: str):
         print(f"Shazam error: {e}")
     return None
 
-async def download_instagram_reel(url: str, output_path: str) -> bool:
+async def download_via_api(url: str, output_path: str) -> bool:
+    """Yutube va Instagram videolarni Cobalt API orqali muqobil yuklash"""
     try:
-        if "/reel/" in url:
-            shortcode = url.split("/reel/")[1].split("/")[0]
-        elif "/p/" in url:
-            shortcode = url.split("/p/")[1].split("/")[0]
-        else:
-            return False
-            
-        loop = asyncio.get_event_loop()
-        
-        def fetch():
-            post = instaloader.Post.from_shortcode(L.context, shortcode)
-            if post.is_video:
-                target_dir = f"insta_{uuid.uuid4().hex}"
-                L.download_post(post, target=target_dir)
+        async with aiohttp.ClientSession() as session:
+            payload = {"url": url, "videoQuality": "720"}
+            headers = {"Accept": "application/json", "Content-Type": "application/json"}
+            async with session.post("https://co.wuk.sh/api/json", json=payload, headers=headers) as resp:
+                data = await resp.json()
+                video_url = data.get("url")
                 
-                for file in os.listdir(target_dir):
-                    if file.endswith(".mp4"):
-                        os.rename(os.path.join(target_dir, file), output_path)
-                        break
-                
-                for file in os.listdir(target_dir):
-                    os.remove(os.path.join(target_dir, file))
-                os.rmdir(target_dir)
-                return True
-            return False
-
-        return await loop.run_in_executor(None, fetch)
+                if video_url:
+                    async with session.get(video_url) as v_resp:
+                        if v_resp.status == 200:
+                            with open(output_path, "wb") as f:
+                                f.write(await v_resp.read())
+                            return True
     except Exception as e:
-        print(f"Instaloader error: {e}")
-        return False
+        print(f"API Download error: {e}")
+    return False
+
+@dp.message(F.text.startswith("http"))
+async def handle_link(message: types.Message):
+    await bot.send_chat_action(chat_id=message.chat.id, action="upload_video")
+    wait_msg = await message.answer("🔄 ⚙️ <b>Media yuklanmoqda...</b>", parse_mode="HTML")
+    
+    raw_url = message.text.strip().split('?')[0]
+    user_id = message.from_user.id
+    video_file = f"video_{uuid.uuid4().hex}.mp4"
+
+    success = False
+
+    # 1-urinish: Direct yt-dlp
+    try:
+        ydl_opts = get_common_yt_opts()
+        ydl_opts.update({
+            'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
+            'outtmpl': video_file,
+        })
+        loop = asyncio.get_event_loop()
+        await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([raw_url]))
+        if os.path.exists(video_file) and os.path.getsize(video_file) > 0:
+            success = True
+    except Exception as e:
+        print(f"yt-dlp xatosi: {e}")
+
+    # 2-urinish: Agar yt-dlp IP blokga tushsa, zaxira API orqali yuklash
+    if not success:
+        success = await download_via_api(raw_url, video_file)
+
+    if success and os.path.exists(video_file):
+        search_query = await recognize_audio(video_file)
+        if search_query:
+            with open(f"query_{user_id}.txt", "w", encoding="utf-8") as f:
+                f.write(search_query)
+
+        bot_info = await bot.get_me()
+        caption_text = f"❤️ @{bot_info.username} downloaded via🚀 📥"
+        keyboard = get_video_keyboard(bot_info.username, user_id)
+        
+        video = types.FSInputFile(video_file)
+        await message.answer_video(video=video, caption=caption_text, reply_markup=keyboard)
+        await wait_msg.delete()
+    else:
+        await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi. Havola noto'g'ri yoki profil yopiq bo'lishi mumkin.")
+
+    await safe_remove(video_file)
 
 async def process_and_show_10_results(message: types.Message, query: str, wait_msg: types.Message = None):
     clean_query = html.escape(query)
-    
     if not wait_msg:
         wait_msg = await message.answer(f"🔍 <b>\"{clean_query}\"</b> qidirilmoqda...", parse_mode="HTML")
     else:
@@ -157,15 +182,10 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
 
     try:
         loop = asyncio.get_event_loop()
-        
         def search():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 res = ydl.extract_info(f'ytsearch10:"{query}"', download=False)
-                entries = res.get('entries', []) if res else []
-                if not entries or len(entries) < 3:
-                    res2 = ydl.extract_info(f'ytsearch10:{query} qo\'shiq', download=False)
-                    entries = res2.get('entries', []) if res2 else []
-                return entries
+                return res.get('entries', []) if res else []
 
         entries = await loop.run_in_executor(None, search)
 
@@ -175,7 +195,6 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
 
         text = f"🔍 <b>{clean_query}</b>\n\n"
         results_list = []
-
         count = 1
         for entry in entries:
             if not entry or count > 10:
@@ -183,41 +202,21 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
             raw_title = entry.get("title", "Noma'lum")
             safe_title = html.escape(raw_title)
             duration = entry.get('duration')
-            
-            if duration:
-                mins, secs = divmod(int(duration), 60)
-                dur_str = f"{mins}:{secs:02d}"
-            else:
-                dur_str = ""
+            dur_str = f"{int(duration)//60}:{int(duration)%60:02d}" if duration else ""
 
             text += f"{count}. {safe_title} <b>{dur_str}</b>\n"
-            
-            video_url = entry.get('url') or entry.get('webpage_url')
-            if not video_url and entry.get('id'):
-                video_url = f"https://www.youtube.com/watch?v={entry.get('id')}"
+            video_url = entry.get('url') or entry.get('webpage_url') or f"https://www.youtube.com/watch?v={entry.get('id')}"
 
-            results_list.append({
-                'url': video_url,
-                'title': raw_title
-            })
+            results_list.append({'url': video_url, 'title': raw_title})
             count += 1
-
-        if not results_list:
-            await wait_msg.edit_text("❌ Hech qanday qo'shiq topilmadi.")
-            return
 
         search_id = str(uuid.uuid4())[:8]
         search_cache[search_id] = results_list
 
-        await wait_msg.edit_text(
-            text, 
-            parse_mode="HTML", 
-            reply_markup=build_search_keyboard(search_id, len(results_list))
-        )
-
+        await wait_msg.edit_text(text, parse_mode="HTML", reply_markup=build_search_keyboard(search_id, len(results_list)))
     except Exception as e:
-        print(f"Natija qidirishda xato: {e}")
-        await wait_msg.edit_text("⚠️ Qo'shiqlar ro'yxatini yuklashda xatolik yuz berdi.")
+        print(f"Qidiruvda xato: {e}")
+        await wait_msg.edit_text("⚠️ Qo'shiqlarni qidirishda xatolik bo'ldi.")
 
 @dp.message(F.voice | F.audio | F.video | F.video_note)
 async def handle_media(message: types.Message):
@@ -235,60 +234,7 @@ async def handle_media(message: types.Message):
     if search_query:
         await process_and_show_10_results(message, search_query, wait_msg)
     else:
-        await wait_msg.edit_text("❌ Afsuski, bu musiqani Shazam aniqlay olmadi.")
-
-@dp.message(F.text.startswith("http"))
-async def handle_link(message: types.Message):
-    await bot.send_chat_action(chat_id=message.chat.id, action="upload_video")
-    wait_msg = await message.answer("🔄 ⚙️ <b>Media yuklanmoqda...</b>", parse_mode="HTML")
-    
-    url = message.text.strip().split('?')[0]
-    user_id = message.from_user.id
-    video_file = f"video_{uuid.uuid4().hex}.mp4"
-
-    try:
-        success = False
-        
-        if "instagram.com" in url:
-            success = await download_instagram_reel(url, video_file)
-        else:
-            ydl_opts = get_common_yt_opts()
-            ydl_opts.update({
-                'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
-                'outtmpl': video_file,
-            })
-            if "youtube.com" in url or "youtu.be" in url:
-                ydl_opts['extractor_args'] = {
-                    'youtube': {
-                        'player_client': ['android_creator', 'ios', 'android'],
-                        'skip': ['webpage', 'configs']
-                    }
-                }
-
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))
-            success = os.path.exists(video_file)
-
-        if success and os.path.exists(video_file):
-            search_query = await recognize_audio(video_file)
-            if search_query:
-                with open(f"query_{user_id}.txt", "w", encoding="utf-8") as f:
-                    f.write(search_query)
-
-            bot_info = await bot.get_me()
-            caption_text = f"❤️ @{bot_info.username} downloaded via🚀 📥"
-            keyboard = get_video_keyboard(bot_info.username, user_id)
-            
-            video = types.FSInputFile(video_file)
-            await message.answer_video(video=video, caption=caption_text, reply_markup=keyboard)
-            await wait_msg.delete()
-        else:
-            await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi.")
-    except Exception as e:
-        print(f"Yuklashda xato: {e}")
-        await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi. Profil yopiq bo'lishi yoki havola noto'g'ri bo'lishi mumkin.")
-    finally:
-        await safe_remove(video_file)
+        await wait_msg.edit_text("❌ Musiqa aniqlanmadi.")
 
 @dp.message(F.text)
 async def handle_text_search(message: types.Message):
@@ -312,16 +258,13 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
 
     try:
         loop = asyncio.get_event_loop()
-        
         def download():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 info = ydl.extract_info(url, download=True)
                 filename = ydl.prepare_filename(info)
                 base, _ = os.path.splitext(filename)
                 mp3_filename = base + ".mp3"
-                if os.path.exists(mp3_filename):
-                    filename = mp3_filename
-                return filename, info.get("title", "Music"), info.get("uploader", "Music Bot")
+                return mp3_filename if os.path.exists(mp3_filename) else filename, info.get("title", "Music"), info.get("uploader", "Music Bot")
 
         downloaded_file, title, performer = await loop.run_in_executor(None, download)
 
@@ -342,8 +285,7 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
 @dp.callback_query(F.data.startswith("sel_"))
 async def handle_select_music(callback: types.CallbackQuery):
     parts = callback.data.split("_")
-    search_id = parts[1]
-    index = int(parts[2]) - 1
+    search_id, index = parts[1], int(parts[2]) - 1
 
     if search_id in search_cache and index < len(search_cache[search_id]):
         selected = search_cache[search_id][index]
@@ -352,7 +294,7 @@ async def handle_select_music(callback: types.CallbackQuery):
         wait_msg = await callback.message.answer(f"📥 <b>\"{clean_title}\"</b> yuklanmoqda...", parse_mode="HTML")
         await download_by_url(callback.message, selected['url'], wait_msg)
     else:
-        await callback.answer("⚠️ Ushbu tugma eskirgan. Qayta qidiring.", show_alert=True)
+        await callback.answer("⚠️ Qidiruv muddati o'tgan.", show_alert=True)
 
 @dp.callback_query(F.data == "close_search")
 async def close_search(callback: types.CallbackQuery):
@@ -360,7 +302,7 @@ async def close_search(callback: types.CallbackQuery):
 
 @dp.callback_query(F.data == "save_video")
 async def save_video(callback: types.CallbackQuery):
-    await callback.answer("✅ Video Saqlanganlar bo'limiga yuborildi!", show_alert=True)
+    await callback.answer("✅ Video saqlandi!", show_alert=True)
     if callback.message.video:
         await bot.send_video(chat_id=callback.from_user.id, video=callback.message.video.file_id)
 
@@ -370,16 +312,16 @@ async def download_audio_button(callback: types.CallbackQuery):
     query_file = f"query_{user_id}.txt"
 
     if os.path.exists(query_file):
-        await callback.answer("📥 Musiqa ro'yxati tayyorlanmoqda...")
+        await callback.answer("📥 Musiqa izlanmoqda...")
         with open(query_file, "r", encoding="utf-8") as f:
             search_query = f.read()
         await process_and_show_10_results(callback.message, search_query)
         await safe_remove(query_file)
     else:
-        await callback.answer("⚠️ Ushbu videodagi musiqa aniqlanmadi.", show_alert=True)
+        await callback.answer("⚠️ Musiqa topilmadi.", show_alert=True)
 
 async def handle_ping(request):
-    return web.Response(text="Bot muvaffaqiyatli ishlayapti!")
+    return web.Response(text="OK")
 
 async def main():
     PORT = int(os.environ.get("PORT", 10000))
@@ -389,8 +331,6 @@ async def main():
     await runner.setup()
     site = web.TCPSite(runner, "0.0.0.0", PORT)
     await site.start()
-
-    print("Bot muvaffaqiyatli ishga tushdi...")
     await dp.start_polling(bot)
 
 if __name__ == "__main__":

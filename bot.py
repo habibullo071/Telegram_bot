@@ -30,6 +30,7 @@ def get_common_yt_opts():
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
+        'noprogress': True,  # Railway log limiti to'lib ketmasligi uchun
         'socket_timeout': 30,
         'extractor_args': {
             'youtube': {

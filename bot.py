@@ -22,7 +22,7 @@ shazam = Shazam()
 
 search_cache = {}
 
-# Cookies faylini tekshirish (papkadagi haqiqiy yo'lni aniqlash)
+# Cookies faylini tekshirish
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIE_PATH = os.path.join(BASE_DIR, "cookies.txt")
 COOKIE_FILE = COOKIE_PATH if os.path.exists(COOKIE_PATH) else None
@@ -36,8 +36,8 @@ def get_common_yt_opts():
         'socket_timeout': 30,
         'extractor_args': {
             'youtube': {
-                'player_client': ['mweb', 'android'],
-                'skip': ['webpage', 'configs']
+                'player_client': ['android', 'web', 'mweb'],
+                'skip': ['configs']
             }
         },
         'http_headers': {
@@ -214,8 +214,10 @@ async def handle_link(message: types.Message):
     video_file = f"video_{uuid.uuid4().hex}.mp4"
 
     ydl_opts = get_common_yt_opts()
+    # Format parametrini har qanday formatni qo'llab-quvvatlaydigan moslashuvchan rejimga o'tkazamiz
     ydl_opts.update({
-        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/b',
+        'format': 'bestvideo+bestaudio/best',
+        'merge_output_format': 'mp4',
         'outtmpl': video_file,
     })
 

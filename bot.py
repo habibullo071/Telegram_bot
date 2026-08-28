@@ -317,7 +317,7 @@ async def download_audio_button(callback: types.CallbackQuery):
         with open(query_file, "r", encoding="utf-8") as f:
             search_query = f.read()
         await process_and_show_10_results(callback.message, search_query)
-        await safe_remove(query_file)
+        # Faylni o'chiradigan safe_remove(query_file) olib tashlandi.
     else:
         await callback.answer("⚠️ Ushbu videodagi musiqa aniqlanmadi.", show_alert=True)
 

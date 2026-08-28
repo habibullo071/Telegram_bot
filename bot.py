@@ -14,7 +14,7 @@ from aiohttp import web
 TOKEN = os.environ.get("BOT_TOKEN")
 
 if not TOKEN:
-    raise ValueError("XATO: BOT_TOKEN topilmadi! Railway yoki server o'zgaruvchilariga BOT_TOKEN kiriting.")
+    raise ValueError("XATO: BOT_TOKEN topilmadi!")
 
 bot = Bot(token=TOKEN)
 dp = Dispatcher()
@@ -22,7 +22,6 @@ shazam = Shazam()
 
 search_cache = {}
 
-# Cookies faylini tekshirish
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIE_PATH = os.path.join(BASE_DIR, "cookies.txt")
 COOKIE_FILE = COOKIE_PATH if os.path.exists(COOKIE_PATH) else None
@@ -34,8 +33,14 @@ def get_common_yt_opts():
         'nocheckcertificate': True,
         'noprogress': True,
         'socket_timeout': 30,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android_creator', 'ios', 'android'],
+                'skip': ['webpage', 'configs']
+            }
+        },
         'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'User-Agent': 'Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1',
             'Accept-Language': 'en-US,en;q=0.9',
         }
     }
@@ -117,15 +122,11 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
         
         def search():
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                first_attempt = f'ytsearch10:"{query}"'
-                res = ydl.extract_info(first_attempt, download=False)
+                res = ydl.extract_info(f'ytsearch10:"{query}"', download=False)
                 entries = res.get('entries', []) if res else []
-                
                 if not entries or len(entries) < 3:
-                    second_attempt = f'ytsearch10:{query} qo\'shiq'
-                    res2 = ydl.extract_info(second_attempt, download=False)
+                    res2 = ydl.extract_info(f'ytsearch10:{query} qo\'shiq', download=False)
                     entries = res2.get('entries', []) if res2 else []
-
                 return entries
 
         entries = await loop.run_in_executor(None, search)
@@ -207,26 +208,15 @@ async def handle_link(message: types.Message):
     user_id = message.from_user.id
     video_file = f"video_{uuid.uuid4().hex}.mp4"
 
-    ydl_opts = {
-        'quiet': True,
-        'no_warnings': True,
-        'noprogress': True,
+    ydl_opts = get_common_yt_opts()
+    ydl_opts.update({
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': video_file,
-        'format': 'b/bestpass/best',
-        'nocheckcertificate': True,
-        'socket_timeout': 30,
-    }
-    if COOKIE_FILE:
-        ydl_opts['cookiefile'] = COOKIE_FILE
+    })
 
     try:
         loop = asyncio.get_event_loop()
-        
-        def download_video():
-            with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                ydl.download([url])
-
-        await loop.run_in_executor(None, download_video)
+        await loop.run_in_executor(None, lambda: yt_dlp.YoutubeDL(ydl_opts).download([url]))
 
         if os.path.exists(video_file):
             search_query = await recognize_audio(video_file)
@@ -245,7 +235,7 @@ async def handle_link(message: types.Message):
             await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi.")
     except Exception as e:
         print(f"Yuklashda xato: {e}")
-        await wait_msg.edit_text("❌ Ushbu videoni yuklab bo'lmadi.")
+        await wait_msg.edit_text("❌ Videoni yuklab bo'lmadi (YouTube blokirovkasi).")
     finally:
         await safe_remove(video_file)
 
@@ -278,10 +268,8 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
                 filename = ydl.prepare_filename(info)
                 base, _ = os.path.splitext(filename)
                 mp3_filename = base + ".mp3"
-                
                 if os.path.exists(mp3_filename):
                     filename = mp3_filename
-                
                 return filename, info.get("title", "Music"), info.get("uploader", "Music Bot")
 
         downloaded_file, title, performer = await loop.run_in_executor(None, download)
@@ -309,7 +297,6 @@ async def handle_select_music(callback: types.CallbackQuery):
     if search_id in search_cache and index < len(search_cache[search_id]):
         selected = search_cache[search_id][index]
         await callback.answer(f"📥 {selected['title']} yuklanmoqda...")
-        
         clean_title = html.escape(selected['title'])
         wait_msg = await callback.message.answer(f"📥 <b>\"{clean_title}\"</b> yuklanmoqda...", parse_mode="HTML")
         await download_by_url(callback.message, selected['url'], wait_msg)
@@ -335,7 +322,6 @@ async def download_audio_button(callback: types.CallbackQuery):
         await callback.answer("📥 Musiqa ro'yxati tayyorlanmoqda...")
         with open(query_file, "r", encoding="utf-8") as f:
             search_query = f.read()
-        
         await process_and_show_10_results(callback.message, search_query)
         await safe_remove(query_file)
     else:

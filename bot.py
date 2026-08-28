@@ -22,19 +22,21 @@ shazam = Shazam()
 
 search_cache = {}
 
-# Cookies fayli mavjud bo'lsa, avtomatik ulaydi
-COOKIE_FILE = "cookies.txt" if os.path.exists("cookies.txt") else None
+# Cookies faylini tekshirish (papkadagi haqiqiy yo'lni aniqlash)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+COOKIE_PATH = os.path.join(BASE_DIR, "cookies.txt")
+COOKIE_FILE = COOKIE_PATH if os.path.exists(COOKIE_PATH) else None
 
 def get_common_yt_opts():
     opts = {
         'quiet': True,
         'no_warnings': True,
         'nocheckcertificate': True,
-        'noprogress': True,  # Railway log limiti to'lib ketmasligi uchun
+        'noprogress': True,
         'socket_timeout': 30,
         'extractor_args': {
             'youtube': {
-                'player_client': ['android', 'ios', 'web'],
+                'player_client': ['mweb', 'android'],
                 'skip': ['webpage', 'configs']
             }
         },
@@ -213,8 +215,7 @@ async def handle_link(message: types.Message):
 
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
-        'format': 'b/best',
-        'format_sort': ['res', 'ext:mp4:m4a'],
+        'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best/b',
         'outtmpl': video_file,
     })
 
@@ -254,7 +255,7 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
     
     ydl_opts = get_common_yt_opts()
     ydl_opts.update({
-        'format': 'ba/b/best',
+        'format': 'bestaudio/best',
         'outtmpl': output_template,
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',

@@ -73,10 +73,21 @@ def build_search_keyboard(search_id: str, count: int):
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
-    await message.answer(
-        f"Salom, {html.escape(message.from_user.first_name)}! 👋\n\n"
-        "Menga video, ovozli xabar, havola yoki qo'shiq nomini yuboring! 🎵"
+    user_name = html.escape(message.from_user.first_name)
+    
+    start_text = (
+        f"Assalomu alaykum, <b>{user_name}</b>! 👋\n"
+        f"<b>Xit Navo</b> botiga xush kelibsiz! 🎧✨\n\n"
+        f"Men sizga istalgan musiqani topish va yuklab olishda yordam beraman. "
+        f"Menga quyidagilardan birini yuboring:\n\n"
+        f"📌 <b>Nimalar yuborishingiz mumkin?</b>\n"
+        f"▫️ <b>Havola (Link):</b> Instagram Reels, YouTube yoki Shorts havolasi\n"
+        f"▫️ <b>Media:</b> Video, Ovozli xabar (Voice) yoki Video xabar (Note)\n"
+        f"▫️ <b>Matn:</b> Qo'shiq nomi yoki ijrochi ismi\n\n"
+        f"⚡️ <i>Musiqa nomini yozing yoki videongizni yuboring, men darhol topib beraman!</i> 🎶"
     )
+    
+    await message.answer(start_text, parse_mode="HTML")
 
 async def safe_remove(file_path: str):
     await asyncio.sleep(1)
@@ -317,7 +328,6 @@ async def download_audio_button(callback: types.CallbackQuery):
         with open(query_file, "r", encoding="utf-8") as f:
             search_query = f.read()
         await process_and_show_10_results(callback.message, search_query)
-        # Faylni o'chiradigan safe_remove(query_file) olib tashlandi.
     else:
         await callback.answer("⚠️ Ushbu videodagi musiqa aniqlanmadi.", show_alert=True)
 

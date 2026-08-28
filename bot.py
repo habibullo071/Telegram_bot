@@ -2,16 +2,19 @@ import os
 import asyncio
 import uuid
 import html
+import sqlite3
 import static_ffmpeg
 static_ffmpeg.add_paths()
 from aiogram import Bot, Dispatcher, types, F
-from aiogram.filters import CommandStart
+from aiogram.filters import Command, CommandStart
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from shazamio import Shazam
 import yt_dlp
 from aiohttp import web
 
 TOKEN = os.environ.get("BOT_TOKEN")
+# O'zingizning Telegram ID'ingizni shu yerga yozing
+ADMIN_ID = 5233653056  # <-- O'zgartiring!
 
 if not TOKEN:
     raise ValueError("XATO: BOT_TOKEN topilmadi!")
@@ -25,6 +28,39 @@ search_cache = {}
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 COOKIE_PATH = os.path.join(BASE_DIR, "cookies.txt")
 COOKIE_FILE = COOKIE_PATH if os.path.exists(COOKIE_PATH) else None
+
+# === SQLite Ma'lumotlar Bazasi Sozlamalari ===
+DB_PATH = os.path.join(BASE_DIR, "bot_users.db")
+
+def init_db():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def add_user(user_id: int):
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("INSERT OR IGNORE INTO users (user_id) VALUES (?)", (user_id,))
+    conn.commit()
+    conn.close()
+
+def get_users_count():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM users")
+    count = cursor.fetchone()[0]
+    conn.close()
+    return count
+
+init_db()
+
+# ===============================================
 
 def get_common_yt_opts():
     opts = {
@@ -73,6 +109,7 @@ def build_search_keyboard(search_id: str, count: int):
 
 @dp.message(CommandStart())
 async def start_cmd(message: types.Message):
+    add_user(message.from_user.id) # Foydalanuvchini bazaga qo'shish
     user_name = html.escape(message.from_user.first_name)
     
     start_text = (
@@ -88,6 +125,13 @@ async def start_cmd(message: types.Message):
     )
     
     await message.answer(start_text, parse_mode="HTML")
+
+# Admin uchun statistika buyrug'i
+@dp.message(Command("stat"))
+async def stat_cmd(message: types.Message):
+    if message.from_user.id == ADMIN_ID:
+        count = get_users_count()
+        await message.answer(f"📊 <b>Bot statistikasi:</b>\n\nJami foydalanuvchilar: <b>{count}</b> ta", parse_mode="HTML")
 
 async def safe_remove(file_path: str):
     await asyncio.sleep(1)
@@ -188,6 +232,7 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
 
 @dp.message(F.voice | F.audio | F.video | F.video_note)
 async def handle_media(message: types.Message):
+    add_user(message.from_user.id)
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     wait_msg = await message.answer("🔄 Qo'shiq aniqlanmoqda...")
     
@@ -206,6 +251,7 @@ async def handle_media(message: types.Message):
 
 @dp.message(F.text.startswith("http"))
 async def handle_link(message: types.Message):
+    add_user(message.from_user.id)
     await bot.send_chat_action(chat_id=message.chat.id, action="upload_video")
     wait_msg = await message.answer("🔄 ⚙️ <b>Media yuklanmoqda...</b>", parse_mode="HTML")
     
@@ -246,6 +292,7 @@ async def handle_link(message: types.Message):
 
 @dp.message(F.text)
 async def handle_text_search(message: types.Message):
+    add_user(message.from_user.id)
     await bot.send_chat_action(chat_id=message.chat.id, action="typing")
     await process_and_show_10_results(message, message.text.strip())
 

@@ -22,6 +22,30 @@ shazam = Shazam()
 
 search_cache = {}
 
+# Cookies fayli mavjud bo'lsa, avtomatik ulaydi
+COOKIE_FILE = "cookies.txt" if os.path.exists("cookies.txt") else None
+
+def get_common_yt_opts():
+    opts = {
+        'quiet': True,
+        'no_warnings': True,
+        'nocheckcertificate': True,
+        'socket_timeout': 30,
+        'extractor_args': {
+            'youtube': {
+                'player_client': ['android', 'ios', 'mweb'],
+                'skip': ['webpage', 'configs']
+            }
+        },
+        'http_headers': {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
+            'Accept-Language': 'en-US,en;q=0.9',
+        }
+    }
+    if COOKIE_FILE:
+        opts['cookiefile'] = COOKIE_FILE
+    return opts
+
 def get_video_keyboard(bot_username: str, user_id: int):
     return InlineKeyboardMarkup(
         inline_keyboard=[
@@ -84,23 +108,12 @@ async def process_and_show_10_results(message: types.Message, query: str, wait_m
     else:
         await wait_msg.edit_text(f"🔍 <b>\"{clean_query}\"</b> bo'yicha variatlar qidirilmoqda...", parse_mode="HTML")
 
-    ydl_opts = {
-        'quiet': True,
+    ydl_opts = get_common_yt_opts()
+    ydl_opts.update({
         'extract_flat': True,
         'skip_download': True,
-        'no_warnings': True,
         'default_search': 'ytsearch',
-        'socket_timeout': 20,
-        'nocheckcertificate': True,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android', 'web']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        }
-    }
+    })
 
     try:
         loop = asyncio.get_event_loop()
@@ -197,22 +210,11 @@ async def handle_link(message: types.Message):
     user_id = message.from_user.id
     video_file = f"video_{uuid.uuid4().hex}.mp4"
 
-    ydl_opts = {
+    ydl_opts = get_common_yt_opts()
+    ydl_opts.update({
         'format': 'bestvideo[ext=mp4]+bestaudio[ext=m4a]/best[ext=mp4]/best',
         'outtmpl': video_file,
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'socket_timeout': 30,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android', 'web']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        }
-    }
+    })
 
     try:
         loop = asyncio.get_event_loop()
@@ -248,27 +250,16 @@ async def download_by_url(message: types.Message, url: str, wait_msg: types.Mess
     unique_id = uuid.uuid4().hex
     output_template = f"music_{unique_id}.%(ext)s"
     
-    ydl_opts = {
+    ydl_opts = get_common_yt_opts()
+    ydl_opts.update({
         'format': 'bestaudio/best',
         'outtmpl': output_template,
-        'quiet': True,
-        'no_warnings': True,
-        'nocheckcertificate': True,
-        'socket_timeout': 30,
-        'extractor_args': {
-            'youtube': {
-                'player_client': ['ios', 'android', 'web']
-            }
-        },
-        'http_headers': {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36',
-        },
         'postprocessors': [{
             'key': 'FFmpegExtractAudio',
             'preferredcodec': 'mp3',
             'preferredquality': '192',
         }],
-    }
+    })
 
     try:
         loop = asyncio.get_event_loop()
